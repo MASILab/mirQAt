@@ -1,6 +1,6 @@
 # mirQAt - Medical Imaging Research QA Toolkit
 
-The original method implemented here was developed by Riqiang Gao and other members of the MASI lab and is available [here](https://github.com/MASILab/QA_tool). I would encourage users to use that tool as it is much more comprehensive. This package contains only a subset of methods that I used for my own QA-ing tasks. This package contains only these tools, with some modifications (fewer dependencies, list comprehension when possible, `pathlib.Path` instead of `os`, etc.) to be more lean and user-friendly command-line interface.
+The original method implemented here was developed by Riqiang Gao and other members of the MASI lab and is available [here](https://github.com/MASILab/QA_tool). I would encourage users to use that tool as it is much more comprehensive. This package contains only a subset of methods that I used for my own QA-ing tasks. This package contains only these tools, with some modifications (fewer dependencies, list comprehension when possible, `pathlib.Path` instead of `os`, etc.) to be more lean and to create a user-friendly command-line interface to help streamline my own QA-ing.
 
 # Image File Structure
 
