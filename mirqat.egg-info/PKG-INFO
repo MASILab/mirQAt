@@ -1,0 +1,14 @@
+Metadata-Version: 1.2
+Name: mirqat
+Version: 0.1.0
+Summary: UNKNOWN
+Home-page: UNKNOWN
+Author: Mirza Khan
+Author-email: mirzask@gmail.com
+License: UNKNOWN
+Description: # mirQAt - Medical Imaging Research QA Toolkit
+        
+        The original method implemented here was developed by Riqiang Gao and other members of the MASI lab. This package consists of methods that were useful in my own QA-ing with some modifications and optimizations.
+        
+Platform: UNKNOWN
+Requires-Python: >=3.8,<4.0

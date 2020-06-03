@@ -1,0 +1,10 @@
+README.md
+setup.py
+mirqat/__init__.py
+mirqat/main.py
+mirqat.egg-info/PKG-INFO
+mirqat.egg-info/SOURCES.txt
+mirqat.egg-info/dependency_links.txt
+mirqat.egg-info/entry_points.txt
+mirqat.egg-info/requires.txt
+mirqat.egg-info/top_level.txt
