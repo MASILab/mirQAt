@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "mirQAt"
+name = "mirqat"
 version = "0.1.0"
 description = ""
 authors = ["Mirza Khan <mirzask@gmail.com>"]
