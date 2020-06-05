@@ -1,10 +1,11 @@
 import typer
-
+import numpy as np
 import pandas as pd
 import pydicom
 from pathlib import Path
 
 app = typer.Typer(help="mirQAT: Medical Imaging Research QA Toolkit")
+
 
 @app.command()
 def dcm_instance(dcm_root):
@@ -13,32 +14,37 @@ def dcm_instance(dcm_root):
     Returns (<num1>, <num2>, <num3>)
 
     Valid: if <num1> == <num2> & <num3> == 0 (<num3> is the diff b/w num1 and num2).
-    Invalid: if <num1> != <num2>, i.e. <num3> != 0.
+    Invalid: if <num1> != <num2>, i.e. <num3> > 0.
     """
     if Path(dcm_root).exists() == False:
         print("This folder does not exist. Please input an existing folder path.")
     dcm_list = list(Path(dcm_root).glob("**/*.dcm"))
     # dcm_list = glob(os.path.join(dcm_root, "*.dcm"))
     if len(dcm_list) == 0:
-        print(
-            "We were unable to find DICOM files in this root directory. Please review path and try again."
+        typer.echo(
+            "We were unable to find DICOM files in this root directory. Please review path and try again.",
+            err=True,
         )
-    #slicePos = []
     instanceN = []
     for i in range(len(dcm_list)):
         ds = pydicom.dcmread(str(dcm_list[i]))
-        # slicePos.append(ds.SliceLocation)
         instanceN.append(ds[0x20, 0x13].value)
-    #print("max and min of instanceN ", max(instanceN), min(instanceN))
-    #typer.secho(f"Max and Min of instanceN is {max(instanceN)} and {min(instanceN)}", fg=typer.colors.GREEN)
+    # print("max and min of instanceN ", max(instanceN), min(instanceN))
+    # typer.secho(f"Max and Min of instanceN is {max(instanceN)} and {min(instanceN)}", fg=typer.colors.GREEN)
     return (
         len(instanceN),
         max(instanceN) - min(instanceN) + 1,
         max(instanceN) - min(instanceN) + 1 - len(instanceN),
     )
 
+
 @app.command()
-def instanceN_fold(fold_root, save_csv_path="instance_num_check.csv"):
+def instanceN_fold(
+    fold_root,
+    save_csv_path: str = typer.Option(
+        "instance_num_check.csv", "--output", "-o", show_default=True
+    ),
+):
     """
     Generates a CSV file comparing instance number, no. of DICOM images.
 
@@ -52,42 +58,49 @@ def instanceN_fold(fold_root, save_csv_path="instance_num_check.csv"):
         - difference b/w # of DICOM images and Instance number
             - Valid values are those <= 0 (?)
     """
+    subj, sess, single_folder, instanceN, dicomN, diff = [], [], [], [], [], []
     subj_list = [x.stem for x in Path(fold_root).iterdir() if x.is_dir()]
-    sess, single_folder, instanceN, dicomN, diff = [], [], [], [], []
+    fold_root = Path(fold_root)
+
     with typer.progressbar(range(0, len(subj_list)), label="Subjects") as subj_prog:
         for i in subj_prog:
-            subj_path = Path(fold_root) / subj_list[i]
-            sess_list = [x.stem for x in Path(subj_path).iterdir() if x.is_dir()]
+            sess_list = [
+                x.stem for x in Path(fold_root / subj_list[i]).iterdir() if x.is_dir()
+            ]
+            subj.extend([subj_list[i]] * len(sess_list))
+            sess.extend(sess_list)
             for j in range(len(sess_list)):
-                sess.append(sess_list[j])
-                # print("(i, j): ", i, j, sess_list[j])
-                sess_path = subj_path / sess_list[j]
-                instance_list = [x.stem for x in Path(sess_path).iterdir() if x.is_dir()]
+                inst_path = [
+                    x
+                    for x in Path(fold_root / subj_list[i] / sess_list[j]).iterdir()
+                    if x.is_dir()
+                ]
+                instance_list = [x.stem for x in inst_path]
+                # set([x.parent.parts[-1] for x in Path(p / subj_list[i] / sess_list[j]).rglob("*.dcm")])
                 if len(instance_list) == 1:
                     single_folder.append(1)
                 else:
                     single_folder.append(0)
-                size_list = []
-                for k in range(len(instance_list)):
-                    p = sess_path / instance_list[k]
-                    size_list.append(len(list(p.rglob("*.dcm"))))
-                    # print(sess_path / instance_list[k])
-                    # if (sess_path / instance_list[k] / "secondary").exists() and not (sess_path / instance_list[k] / "DICOM").exists():    # Unnecessary if not dealing with DICOM subdir
-                    #    (sess_path / instance_list[k] / "secondary").rename(sess_path / instance_list[k] / "DICOM")
-                    # size = len(os.listdir(sess_path + "/" + instance_list[k] + "/DICOM")) # There is no DICOM subdirectory, so this throws an error
-                    # size = len([x for x in  if x.is_dir()])
-                    # size_list.append(size)
-                max_index = size_list.index(max(size_list))
-                # break
-
-                # Renames the dir with the greatest # of dcm image files
-                if 'new_max' in [p.stem for p in sess_path.iterdir()]:
-                    typer.echo(f"A folder is already called 'new_max'. You may have run this command before. Please review for discrepancies.\n", err=True)
+                # inst_path = [Path(p / subj_list[i] / sess_list[j] / x) for x in instance_list]
+                max_index = np.argmax([len(list(p.glob("*.dcm"))) for p in inst_path])
+                # print(max_index, inst_path[max_index])
+                if "new_max" in [
+                    p.stem
+                    for p in Path(fold_root / subj_list[i] / sess_list[j]).iterdir()
+                ]:
+                    typer.echo(
+                        f"A folder is already called 'new_max' for Subject {subj_list[i]}. You may have run this command before. Please review for discrepancies.\n",
+                        err=True,
+                    )
                 else:
-                    (sess_path / instance_list[max_index]).rename(sess_path / "new_max")
+                    (inst_path[max_index]).rename(
+                        fold_root / subj_list[i] / sess_list[j] / "new_max"
+                    )
+
                 try:
-                    # inst_n, dicom_n, same = dcm_instance(sess_path + "/new_max/DICOM") # Again, there is no DICOM subdirectory, so this throws an error
-                    inst_n, dicom_n, same = dcm_instance(sess_path / "new_max")
+                    inst_n, dicom_n, same = dcm_instance(
+                        fold_root / subj_list[i] / sess_list[j] / "new_max"
+                    )
                     instanceN.append(inst_n)
                     dicomN.append(dicom_n)
                     diff.append(same)
@@ -95,16 +108,29 @@ def instanceN_fold(fold_root, save_csv_path="instance_num_check.csv"):
                     instanceN.append("")
                     dicomN.append("")
                     diff.append("")
-                    print("dicom error")
-    data = pd.DataFrame()
-    data["sess"] = sess
-    data["single_folder"] = single_folder
-    data["instanceN"] = instanceN
-    data["dicomN"] = dicomN
-    data["dicomN-instanceN"] = diff
-    data.to_csv(save_csv_path, index=False)
-    typer.secho(f"Instance number checking complete! Please review output in file: {str(save_csv_path)}.", fg=typer.colors.GREEN)
+                    typer.echo(
+                        f"An error occurred while trying to perform instance number checking for Subject {subj_list[i]}.\n",
+                        err=True,
+                    )
 
+    # assert len(subj) == len(sess) == len(single_folder)
+
+    col_names = [
+        "subject",
+        "session",
+        "single_folder",
+        "instanceN",
+        "dicomN",
+        "dicomN-instanceN",
+    ]
+    data = pd.DataFrame(
+        zip(subj, sess, single_folder, instanceN, dicomN, diff), columns=col_names
+    )
+    data.to_csv(save_csv_path, index=False)
+    typer.secho(
+        f"Instance number checking complete! Please review output in file: {str(save_csv_path)}.",
+        fg=typer.colors.GREEN,
+    )
 
 
 @app.command()
@@ -131,15 +157,16 @@ def dcm_slicedistance(dcm_root):
     ds_sort = sorted(ds_list, reverse=True)
     res = 1
     for i in range(0, len(ds_sort) - 2):
-        #print((ds_sort[i] - ds_sort[i + 1]), (ds_sort[i + 1] - ds_sort[i + 2]))
+        # print((ds_sort[i] - ds_sort[i + 1]), (ds_sort[i + 1] - ds_sort[i + 2]))
         if not abs(
             (ds_sort[i] - ds_sort[i + 1]) - (ds_sort[i + 1] - ds_sort[i + 2])
         ) < (ds_sort[0] - ds_sort[1]):
             res = 0
     return res
 
+
 @app.command()
-def sliceDis_fold(fold_root, save_csv_path='slice_dist_check.csv'):
+def sliceDis_fold(fold_root, save_csv_path="slice_dist_check.csv"):
     """
     Generates a csv file with DICOM slice distance information.
 
@@ -160,15 +187,17 @@ def sliceDis_fold(fold_root, save_csv_path='slice_dist_check.csv'):
             sess_list = [x.stem for x in Path(subj_path).iterdir() if x.is_dir()]
             for j in range(len(sess_list)):
                 sess.append(sess_list[j])
-                #print("(i, j): ", i, j, sess_list[j])
+                # print("(i, j): ", i, j, sess_list[j])
                 sess_path = subj_path / sess_list[j]
-                instance_list = [x.stem for x in Path(sess_path).iterdir() if x.is_dir()]
+                instance_list = [
+                    x.stem for x in Path(sess_path).iterdir() if x.is_dir()
+                ]
                 if len(instance_list) == 1:
                     single_folder.append(1)
                 else:
                     single_folder.append(0)
                 try:
-                    #same = dcm_slicedistance(sess_path + "/new_max/DICOM") # the DICOM files are under `new_max` and not `new_max/DICOM`
+                    # same = dcm_slicedistance(sess_path + "/new_max/DICOM") # the DICOM files are under `new_max` and not `new_max/DICOM`
                     same = dcm_slicedistance(sess_path / "new_max")
                     diff.append(same)
                 except:
@@ -184,10 +213,14 @@ def sliceDis_fold(fold_root, save_csv_path='slice_dist_check.csv'):
     data["single_folder"] = single_folder
     data["distance_check"] = diff
     data.to_csv(save_csv_path, index=False)
-    typer.secho(f"Slice distance check complete! Please review output in file: {str(save_csv_path)}.", fg=typer.colors.GREEN)
+    typer.secho(
+        f"Slice distance check complete! Please review output in file: {str(save_csv_path)}.",
+        fg=typer.colors.GREEN,
+    )
+
 
 @app.command()
-def filter_few_slices(csv_path='instance_num_check.csv'):
+def filter_few_slices(csv_path="instance_num_check.csv"):
     """
     Filter to exclude sessions with few slices (less than 20) but that pass instance number check (dicomN - instanceN > 0).
     
@@ -202,4 +235,7 @@ def filter_few_slices(csv_path='instance_num_check.csv'):
             auto_QA_result.append("good")
     df["auto"] = auto_QA_result
     df.to_csv(csv_path, index=False)
-    typer.secho('Filtering completed. Review instance number check CSV file for updated output.', fg=typer.colors.GREEN)
+    typer.secho(
+        "Filtering completed. Review instance number check CSV file for updated output.",
+        fg=typer.colors.GREEN,
+    )
